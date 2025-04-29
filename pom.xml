@@ -21,5 +21,8 @@
         <module>onemall-order</module>
         <module>onemall-product</module>
         <module>onemall-ware</module>
+        <module>renren-fast</module>
+        <module>renren-generator</module>
+        <module>onemall-common</module>
     </modules>
 </project>
