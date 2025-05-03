@@ -2,5 +2,16 @@ spring:
   cloud:
     gateway:
       routes:
-        - id: test_route
-          uri: http://localhost:8080
+        - id: product_route
+          uri: lb://onemall-product
+          predicates:
+            - Path=/api/product/**
+          filters:
+            - RewritePath=/api/(?<segment>.*),/$\{segment}
+
+        - id: admin_route
+          uri: lb://renren-fast
+          predicates:
+            - Path=/api/**
+          filters:
+            - RewritePath=/api/(?<segment>.*),/renren-fast/$\{segment}
