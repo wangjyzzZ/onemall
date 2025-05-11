@@ -9,6 +9,7 @@ import com.wood.onemall.product.service.AttrGroupService;
 import com.wood.onemall.product.service.AttrService;
 import com.wood.onemall.product.service.CategoryService;
 import com.wood.onemall.product.vo.AttrGroupRelationVo;
+import com.wood.onemall.product.vo.AttrGroupWithAttrsVo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -47,6 +48,12 @@ public class AttrGroupController {
     public R addRelation(@RequestBody List<AttrGroupRelationVo> vos) {
         relationService.saveBatch(vos);
         return R.ok();
+    }
+
+    @GetMapping("/{catelogId}/withattr")
+    public R getAttrGroupWithAttrs(@PathVariable("catelogId") Long catelogId) {
+        List<AttrGroupWithAttrsVo> vos = attrGroupService.getAttrGroupWithAttrsByCatelogId(catelogId);
+        return R.ok().put("data", vos);
     }
 
     @GetMapping("/{attrgroupId}/attr/relation")

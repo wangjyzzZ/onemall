@@ -2,7 +2,7 @@ spring:
   datasource:
     username: root
     password: wannafly
-    url: jdbc:mysql://192.168.56.101:3306/onemall_pms
+    url: jdbc:mysql://192.168.56.101:3306/onemall_pms?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&rewriteBatchedStatements=true&useSSL=false
     driver-class-name: com.mysql.cj.jdbc.Driver
   cloud:
     nacos:

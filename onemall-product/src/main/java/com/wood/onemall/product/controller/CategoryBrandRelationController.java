@@ -3,9 +3,12 @@ package com.wood.onemall.product.controller;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.wood.common.utils.PageUtils;
 import com.wood.common.utils.R;
+import com.wood.onemall.product.entity.BrandEntity;
 import com.wood.onemall.product.entity.CategoryBrandRelationEntity;
 import com.wood.onemall.product.service.CategoryBrandRelationService;
+import com.wood.onemall.product.vo.BrandVo;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -16,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-
+import java.util.stream.Collectors;
 
 
 /**
@@ -52,6 +55,19 @@ public class CategoryBrandRelationController {
         );
 
         return R.ok().put("data", data);
+    }
+
+    @GetMapping("/brands/list")
+    public R relationBrandList(@RequestParam(value = "catId") Long catId) {
+        List<BrandEntity> data = categoryBrandRelationService.getBrandsByCatId(catId);
+
+        List<BrandVo> vos = data.stream().map(item -> {
+            BrandVo brandVo = new BrandVo();
+            brandVo.setBrandId(item.getBrandId());
+            brandVo.setBrandName(item.getName());
+            return brandVo;
+        }).collect(Collectors.toList());
+        return R.ok().put("data", vos);
     }
 
 

@@ -12,11 +12,16 @@ import com.wood.onemall.product.dao.CategoryDao;
 import com.wood.onemall.product.entity.BrandEntity;
 import com.wood.onemall.product.entity.CategoryBrandRelationEntity;
 import com.wood.onemall.product.entity.CategoryEntity;
+import com.wood.onemall.product.service.BrandService;
 import com.wood.onemall.product.service.CategoryBrandRelationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 
 @Service("categoryBrandRelationService")
@@ -25,6 +30,10 @@ public class CategoryBrandRelationServiceImpl extends ServiceImpl<CategoryBrandR
     private CategoryDao categoryDao;
     @Autowired
     private BrandDao brandDao;
+    @Autowired
+    private CategoryBrandRelationDao relationDao;
+    @Autowired
+    private BrandService brandService;
 
     @Override
     public PageUtils queryPage(Map<String, Object> params) {
@@ -61,6 +70,20 @@ public class CategoryBrandRelationServiceImpl extends ServiceImpl<CategoryBrandR
     @Override
     public void updateCategory(Long catId, String name) {
         this.baseMapper.updateCategory(catId, name);
+    }
+
+    @Override
+    public List<BrandEntity> getBrandsByCatId(Long catId) {
+        List<CategoryBrandRelationEntity> catelogId = relationDao.selectList(new QueryWrapper<CategoryBrandRelationEntity>().eq("catelog_id", catId));
+        if (!CollectionUtils.isEmpty(catelogId)) {
+            List<BrandEntity> collect = catelogId.stream().map(item -> {
+                Long brandId = item.getBrandId();
+                BrandEntity byId = brandService.getById(brandId);
+                return byId;
+            }).collect(Collectors.toList());
+            return collect;
+        }
+        return Collections.emptyList();
     }
 
 }

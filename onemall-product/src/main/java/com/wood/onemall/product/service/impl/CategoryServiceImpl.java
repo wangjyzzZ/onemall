@@ -49,7 +49,7 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
                 }).sorted(Comparator.comparingInt(menu -> (menu.getSort() == null ? 0 : menu.getSort())))
                 .collect(Collectors.toList());
 
-        return entities;
+        return level1Menus;
     }
 
     @Override
@@ -83,6 +83,9 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
     }
 
     private List<CategoryEntity> getChildrens(CategoryEntity root, List<CategoryEntity> all) {
+        if (all.stream().noneMatch(categoryEntity -> Objects.equals(categoryEntity.getParentCid(), root.getCatId()))) {
+            return null;
+        }
         return all.stream().filter(categoryEntity -> Objects.equals(categoryEntity.getParentCid(), root.getCatId()))
                 .map(categoryEntity -> {
                     categoryEntity.setChildren(getChildrens(categoryEntity, all));

@@ -1,19 +1,20 @@
 package com.wood.onemall.coupon.controller;
 
-import java.util.Arrays;
-import java.util.Map;
-
+import com.wood.common.to.SkuReductionTo;
+import com.wood.common.utils.PageUtils;
+import com.wood.common.utils.R;
+import com.wood.onemall.coupon.entity.SkuFullReductionEntity;
+import com.wood.onemall.coupon.service.SkuFullReductionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.wood.onemall.coupon.entity.SkuFullReductionEntity;
-import com.wood.onemall.coupon.service.SkuFullReductionService;
-import com.wood.common.utils.PageUtils;
-import com.wood.common.utils.R;
+import java.util.Arrays;
+import java.util.Map;
 
 
 
@@ -29,6 +30,13 @@ import com.wood.common.utils.R;
 public class SkuFullReductionController {
     @Autowired
     private SkuFullReductionService skuFullReductionService;
+
+    @PostMapping("/saveinfo")
+    public R saveInfo(@RequestBody SkuReductionTo reductionTo){
+        skuFullReductionService.saveSkuReduction(reductionTo);
+
+        return R.ok();
+    }
 
     /**
      * 列表
