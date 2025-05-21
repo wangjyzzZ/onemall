@@ -1,15 +1,20 @@
 package com.wood.onemall.product.service.impl;
 
+import com.alibaba.fastjson.TypeReference;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.wood.common.constant.ProductConstant;
 import com.wood.common.to.SkuReductionTo;
 import com.wood.common.to.SpuBoundTo;
+import com.wood.common.to.es.SkuEsModel;
 import com.wood.common.utils.PageUtils;
 import com.wood.common.utils.Query;
 import com.wood.common.utils.R;
 import com.wood.onemall.product.dao.SpuInfoDao;
 import com.wood.onemall.product.entity.AttrEntity;
+import com.wood.onemall.product.entity.BrandEntity;
+import com.wood.onemall.product.entity.CategoryEntity;
 import com.wood.onemall.product.entity.ProductAttrValueEntity;
 import com.wood.onemall.product.entity.SkuImagesEntity;
 import com.wood.onemall.product.entity.SkuInfoEntity;
@@ -17,7 +22,11 @@ import com.wood.onemall.product.entity.SkuSaleAttrValueEntity;
 import com.wood.onemall.product.entity.SpuInfoDescEntity;
 import com.wood.onemall.product.entity.SpuInfoEntity;
 import com.wood.onemall.product.feign.CouponFeignService;
+import com.wood.onemall.product.feign.SearchFeignService;
+import com.wood.onemall.product.feign.WareFeignService;
 import com.wood.onemall.product.service.AttrService;
+import com.wood.onemall.product.service.BrandService;
+import com.wood.onemall.product.service.CategoryService;
 import com.wood.onemall.product.service.ProductAttrValueService;
 import com.wood.onemall.product.service.SkuImagesService;
 import com.wood.onemall.product.service.SkuInfoService;
@@ -29,6 +38,7 @@ import com.wood.onemall.product.vo.Attr;
 import com.wood.onemall.product.vo.BaseAttrs;
 import com.wood.onemall.product.vo.Bounds;
 import com.wood.onemall.product.vo.Images;
+import com.wood.onemall.product.vo.SkuHasStockVo;
 import com.wood.onemall.product.vo.Skus;
 import com.wood.onemall.product.vo.SpuSaveVo;
 import org.springframework.beans.BeanUtils;
@@ -38,9 +48,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 
@@ -63,6 +76,14 @@ public class SpuInfoServiceImpl extends ServiceImpl<SpuInfoDao, SpuInfoEntity> i
     private SkuSaleAttrValueService skuSaleAttrValueService;
     @Autowired
     private CouponFeignService couponFeignService;
+    @Autowired
+    private BrandService brandService;
+    @Autowired
+    private CategoryService categoryService;
+    @Autowired
+    private WareFeignService wareFeignService;
+    @Autowired
+    private SearchFeignService searchFeignService;
 
     @Override
     public PageUtils queryPage(Map<String, Object> params) {
@@ -214,6 +235,74 @@ public class SpuInfoServiceImpl extends ServiceImpl<SpuInfoDao, SpuInfoEntity> i
         );
 
         return new PageUtils(page);
+    }
+
+    @Override
+    public void up(Long spuId) {
+        List<SkuEsModel> upProducts = new ArrayList<>();
+        SkuEsModel esModel = new SkuEsModel();
+
+        List<SkuInfoEntity> skus = skuInfoService.getSkusBySpuId(spuId);
+        List<Long> skuIdList = skus.stream().map(SkuInfoEntity::getSkuId).collect(Collectors.toList());
+
+        List<ProductAttrValueEntity> baseAttrs = productAttrValueService.baseAttrListForSpu(spuId);
+        List<Long> attrIds = baseAttrs.stream().map(ProductAttrValueEntity::getAttrId).collect(Collectors.toList());
+
+        List<Long> searchAttrIds = attrService.selectSearchAttrs(attrIds);
+
+        Set<Long> idSet = new HashSet<>(searchAttrIds);
+
+        List<ProductAttrValueEntity> attrValueEntities = baseAttrs.stream()
+                .filter(sku -> idSet.contains(sku.getAttrId()))
+                .collect(Collectors.toList());
+
+        Map<Long, Boolean> stockMap = null;
+        try {
+            R r = wareFeignService.getSkusHasStock(skuIdList);
+            TypeReference<List<SkuHasStockVo>> typeReference = new TypeReference<List<SkuHasStockVo>>() {
+            };
+            stockMap = r.getData(typeReference).stream().collect(Collectors.toMap(SkuHasStockVo::getSkuId, SkuHasStockVo::getHasStock));
+        } catch (Exception e) {
+            log.error("库存服务查询异常：原因{}", e);
+        }
+
+        Map<Long, Boolean> finalStockMap = stockMap;
+        List<SkuEsModel> collect = skus.stream().map(sku -> {
+            SkuEsModel skuEsModel = new SkuEsModel();
+            BeanUtils.copyProperties(sku, skuEsModel);
+            skuEsModel.setSkuPrice(sku.getPrice());
+            skuEsModel.setSkuImg(sku.getSkuDefaultImg());
+            // 发送远程调用，库存系统查询是否有库存
+            skuEsModel.setHasStock(finalStockMap == null ? false : finalStockMap.get(sku.getSkuId()));
+
+            // TODO 热度评分
+            skuEsModel.setHotScore(0L);
+
+            // 查询品牌和分类的名字
+            BrandEntity brand = brandService.getById(sku.getBrandId());
+            skuEsModel.setBrandName(brand.getName());
+            skuEsModel.setBrandImg(brand.getLogo());
+
+            CategoryEntity category = categoryService.getById(sku.getCatalogId());
+            skuEsModel.setCatalogName(category.getName());
+            // 设置检索属性
+            skuEsModel.setAttrs(attrValueEntities.stream().map(attr -> {
+                SkuEsModel.Attr attr1 = new SkuEsModel.Attr();
+                BeanUtils.copyProperties(attr, attr1);
+                return attr1;
+            }).collect(Collectors.toList()));
+            return skuEsModel;
+        }).collect(Collectors.toList());
+
+        R r = searchFeignService.productStatusUp(collect);
+        if (r.getCode() == 0) {
+            // 远程调用成功
+            // 修改当前spu状态
+            baseMapper.updateSpuStatus(spuId, ProductConstant.StatusEnum.SPU_UP.getCode());
+        } else {
+            // 远程调用失败
+            // TODO 重复调用，接口幂等性，重试机制
+        }
     }
 
 }
