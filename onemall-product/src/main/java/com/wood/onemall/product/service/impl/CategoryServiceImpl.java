@@ -9,6 +9,7 @@ import com.wood.onemall.product.dao.CategoryDao;
 import com.wood.onemall.product.entity.CategoryEntity;
 import com.wood.onemall.product.service.CategoryBrandRelationService;
 import com.wood.onemall.product.service.CategoryService;
+import com.wood.onemall.product.vo.Catalog2Vo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -71,6 +72,57 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
     public void updateCascade(CategoryEntity category) {
         this.updateById(category);
         categoryBrandRelationService.updateCategory(category.getCatId(), category.getName());
+    }
+
+    @Override
+    public List<CategoryEntity> getLevelOneCategories() {
+        List<CategoryEntity> entities = baseMapper.selectList(new QueryWrapper<CategoryEntity>().eq("parent_cid", 0));
+        return entities;
+    }
+
+    @Override
+    public Map<String, List<Catalog2Vo>> getCatalogJson() {
+        // 查出所有的菜单
+        List<CategoryEntity> categoryEntities = baseMapper.selectList(null);
+        // 所有一级菜单
+        List<CategoryEntity> level1Categories = categoryEntities.stream().filter(item -> item.getParentCid() == 0).collect(Collectors.toList());
+
+        Map<String, List<Catalog2Vo>> catelogMap = level1Categories.stream()
+                // collectors.toMap 生成map
+                .collect(Collectors.toMap(
+                        // 一级分类的catId作为map的键
+                        level1Category -> level1Category.getCatId().toString(),
+                        // 一级分类的所有二级分类作为map的值
+                        leve1Category -> {
+                            // 先过滤出这个一级分类下的全部二级分类
+                            List<Catalog2Vo> catelog2VOList = categoryEntities.stream().filter(category -> category.getParentCid().equals(leve1Category.getCatId()))
+                                    // 再讲二级分类实体类 -> Catelog2VO
+                                    .map(level2Category -> {
+                                        // 设置属性
+                                        Catalog2Vo catelog2VO = new Catalog2Vo();
+                                        catelog2VO.setCatalog1Id(leve1Category.getCatId().toString());
+                                        catelog2VO.setId(level2Category.getCatId().toString());
+                                        catelog2VO.setName(level2Category.getName());
+                                        // Catelog2VO中有个字段是Catelog3VO
+                                        // 先过滤出这个二级分类下的所有分类
+                                        List<Catalog2Vo.Catalog3Vo> catelog3VOList = categoryEntities.stream().filter(category -> category.getParentCid().equals(level2Category.getCatId()))
+                                                // 再把这些三级分类对象 -> catelog3VO
+                                                .map(level3Category -> {
+                                                    // 设置属性
+                                                    Catalog2Vo.Catalog3Vo catelog3VO = new Catalog2Vo.Catalog3Vo();
+                                                    catelog3VO.setCatalog2Id(level2Category.getCatId().toString());
+                                                    catelog3VO.setId(level3Category.getCatId().toString());
+                                                    catelog3VO.setName(level3Category.getName());
+                                                    return catelog3VO;
+                                                }).collect(Collectors.toList());
+                                        // 填充给catelog2VO对应的字段
+                                        catelog2VO.setCatalog3List(catelog3VOList);
+                                        return catelog2VO;
+                                    }).collect(Collectors.toList());
+                            // 返回catelog2VOList，作为map<k,v>的值
+                            return catelog2VOList;
+                        }));
+        return catelogMap;
     }
 
     private List<Long> findParentPath(Long catelogId, List<Long> paths) {

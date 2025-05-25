@@ -1,4 +1,4 @@
-package com.wood.onemall.product.controller;
+package com.wood.onemall.product.app;
 
 import com.wood.common.utils.PageUtils;
 import com.wood.common.utils.R;

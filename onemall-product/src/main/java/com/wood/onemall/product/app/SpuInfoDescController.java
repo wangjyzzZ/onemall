@@ -1,4 +1,4 @@
-package com.wood.onemall.product.controller;
+package com.wood.onemall.product.app;
 
 import java.util.Arrays;
 import java.util.Map;
