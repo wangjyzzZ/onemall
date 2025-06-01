@@ -1,13 +1,24 @@
 package com.wood.onemall.product;
 
-import org.junit.jupiter.api.Test;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.test.context.junit4.SpringRunner;
 
+@RunWith(SpringRunner.class)
 @SpringBootTest
-class OnemallProductApplicationTests {
+public class OnemallProductApplicationTests {
+
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
 
     @Test
-    void contextLoads() {
+    public void contextLoads() {
+        stringRedisTemplate.opsForValue().set("aaa","111");
+
+        System.out.println(stringRedisTemplate.opsForValue().get("aaa"));
     }
 
 }

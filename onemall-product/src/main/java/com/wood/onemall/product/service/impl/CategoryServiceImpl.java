@@ -1,5 +1,7 @@
 package com.wood.onemall.product.service.impl;
 
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.TypeReference;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -10,9 +12,16 @@ import com.wood.onemall.product.entity.CategoryEntity;
 import com.wood.onemall.product.service.CategoryBrandRelationService;
 import com.wood.onemall.product.service.CategoryService;
 import com.wood.onemall.product.vo.Catalog2Vo;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -27,6 +36,10 @@ import java.util.stream.Collectors;
 public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity> implements CategoryService {
     @Autowired
     private CategoryBrandRelationService categoryBrandRelationService;
+    @Autowired
+    private StringRedisTemplate redisTemplate;
+    @Autowired
+    private RedissonClient redisson;
 
     @Override
     public PageUtils queryPage(Map<String, Object> params) {
@@ -69,11 +82,16 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = "category", key = "'getLevelOneCategories'"),
+            @CacheEvict(value = "category", key = "'getCatalogJson'")
+    })
     public void updateCascade(CategoryEntity category) {
         this.updateById(category);
         categoryBrandRelationService.updateCategory(category.getCatId(), category.getName());
     }
 
+    @Cacheable(value = "category", key = "#root.method.name")
     @Override
     public List<CategoryEntity> getLevelOneCategories() {
         List<CategoryEntity> entities = baseMapper.selectList(new QueryWrapper<CategoryEntity>().eq("parent_cid", 0));
@@ -81,7 +99,35 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
     }
 
     @Override
+    @Cacheable(value = "category", key = "#root.methodName")
     public Map<String, List<Catalog2Vo>> getCatalogJson() {
+        return getCatalogJsonFromDB();
+    }
+
+    private Map<String, List<Catalog2Vo>> getCatalogJsonCache() {
+        String catalogJSON = redisTemplate.opsForValue().get("catalogJSON");
+        if (!StringUtils.isEmpty(catalogJSON)) {
+            return JSON.parseObject(catalogJSON, new TypeReference<Map<String, List<Catalog2Vo>>>(){});
+        }
+        Map<String, List<Catalog2Vo>> catalogJsonFromDB = getCatalogJsonFromDB();
+        redisTemplate.opsForValue().set("catalogJSON", JSON.toJSONString(catalogJsonFromDB));
+        return catalogJsonFromDB;
+    }
+
+    public Map<String, List<Catalog2Vo>> getCatalogJsonFromDbWithRedissonLock() {
+        RLock lock = redisson.getLock("catalogJson-lock");
+        lock.lock();
+
+        Map<String, List<Catalog2Vo>> catalogJsonFromDB = null;
+        try {
+            catalogJsonFromDB = getCatalogJsonFromDB();
+        } finally {
+            lock.unlock();
+        }
+        return catalogJsonFromDB;
+    }
+
+    public Map<String, List<Catalog2Vo>> getCatalogJsonFromDB() {
         // 查出所有的菜单
         List<CategoryEntity> categoryEntities = baseMapper.selectList(null);
         // 所有一级菜单
