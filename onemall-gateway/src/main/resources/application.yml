@@ -40,4 +40,9 @@ spring:
         - id: onemall_host_route
           uri: lb://onemall-product
           predicates:
-            - Host=**.onemall.com,onemall.com
+            - Host=onemall.com
+
+        - id: onemall_search_route
+          uri: lb://onemall-search
+          predicates:
+            - Host=search.onemall.com
